@@ -17,7 +17,13 @@ from stock_analyzer.database import StockDatabase
 from stock_analyzer.providers import DataProvider, YFinanceProvider
 from stock_analyzer.reporting import format_error_alert, format_report
 from stock_analyzer.scoring import rank_symbols
-from stock_analyzer.telegram import TelegramSender
+from stock_analyzer.telegram import (
+    TelegramChat,
+    TelegramConfigError,
+    TelegramSendError,
+    TelegramSender,
+    fetch_recent_chat_ids,
+)
 from stock_analyzer.universe import build_universe
 
 
@@ -169,6 +175,23 @@ def send_telegram_test(settings: Settings) -> str:
     return message
 
 
+def print_telegram_chat_ids(settings: Settings) -> list[TelegramChat]:
+    chats = fetch_recent_chat_ids(
+        bot_token=settings.telegram_bot_token,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
+    if not chats:
+        print("No Telegram chats found. Open your bot in Telegram, send it a message, then rerun this command.")
+        return chats
+
+    print("Recent Telegram chat IDs:")
+    for chat in chats:
+        print(f"- {chat.chat_id} | {chat.chat_type} | {chat.display_name}")
+    print("")
+    print("Set TELEGRAM_CHAT_ID to the desired ID, and include the same value in ALLOWED_TELEGRAM_CHAT_IDS.")
+    return chats
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Moonshot stock analyzer")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -184,6 +207,12 @@ def parse_args() -> argparse.Namespace:
         help="Send one Telegram configuration test message",
     )
     _add_common_options(telegram_test_parser)
+
+    telegram_chat_id_parser = subparsers.add_parser(
+        "telegram-chat-id",
+        help="Print recent Telegram chat IDs from bot updates",
+    )
+    telegram_chat_id_parser.add_argument("--timeout", type=float, help="Telegram request timeout seconds")
 
     init_parser = subparsers.add_parser("init-db", help="Initialize SQLite schema")
     _add_common_options(init_parser)
@@ -209,28 +238,30 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
     settings = load_settings()
     overrides: dict[str, object] = {}
 
-    if args.dry_run:
+    if getattr(args, "dry_run", False):
         overrides["dry_run"] = True
-    if args.live:
+    if getattr(args, "live", False):
         overrides["dry_run"] = False
-    if args.max_symbols is not None:
+    if getattr(args, "max_symbols", None) is not None:
         overrides["max_symbols"] = args.max_symbols
-    if args.symbols is not None:
+    if getattr(args, "symbols", None) is not None:
         overrides["manual_symbols"] = _parse_symbols_arg(args.symbols)
-    if args.top_n is not None:
+    if getattr(args, "top_n", None) is not None:
         overrides["top_n"] = args.top_n
-    if args.threshold is not None:
+    if getattr(args, "threshold", None) is not None:
         overrides["alert_score_threshold"] = args.threshold
-    if args.budget is not None:
+    if getattr(args, "budget", None) is not None:
         overrides["alert_budget"] = clamp_alert_budget(args.budget)
-    if args.db_path is not None:
+    if getattr(args, "db_path", None) is not None:
         from pathlib import Path
 
         overrides["db_path"] = Path(args.db_path)
-    if args.no_catalysts:
+    if getattr(args, "no_catalysts", False):
         overrides["catalyst_provider"] = "none"
-    if args.catalyst_top_n is not None:
+    if getattr(args, "catalyst_top_n", None) is not None:
         overrides["catalyst_top_n"] = args.catalyst_top_n
+    if getattr(args, "timeout", None) is not None:
+        overrides["request_timeout_seconds"] = args.timeout
 
     return settings.with_overrides(**overrides)
 
@@ -260,16 +291,23 @@ def main() -> None:
     args = parse_args()
     settings = settings_from_args(args)
 
-    if args.command == "run-once":
-        run_once(settings)
-    elif args.command == "schedule":
-        schedule(settings)
-    elif args.command == "telegram-test":
-        send_telegram_test(settings)
-    elif args.command == "init-db":
-        initialize_database(settings)
-    else:
-        raise ValueError(f"Unknown command: {args.command}")
+    try:
+        if args.command == "run-once":
+            run_once(settings)
+        elif args.command == "schedule":
+            schedule(settings)
+        elif args.command == "telegram-test":
+            send_telegram_test(settings)
+        elif args.command == "telegram-chat-id":
+            print_telegram_chat_ids(settings)
+        elif args.command == "init-db":
+            initialize_database(settings)
+        else:
+            raise ValueError(f"Unknown command: {args.command}")
+    except TelegramConfigError as exc:
+        raise SystemExit(f"Telegram configuration error: {exc}") from None
+    except TelegramSendError as exc:
+        raise SystemExit(f"Telegram delivery error: {exc}") from None
 
 
 if __name__ == "__main__":

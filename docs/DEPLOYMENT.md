@@ -66,6 +66,12 @@ Then send exactly one Telegram test message:
 sudo -u stock-analyzer /opt/stock-analyzer/.venv/bin/python -m stock_analyzer.app telegram-test --live
 ```
 
+If you still need the chat ID, first message the bot from Telegram, then run:
+
+```bash
+sudo -u stock-analyzer /opt/stock-analyzer/.venv/bin/python -m stock_analyzer.app telegram-chat-id
+```
+
 ## Systemd Timer
 
 Install the service and timer:

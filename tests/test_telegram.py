@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from stock_analyzer.telegram import TelegramConfigError, TelegramSendError, TelegramSender
+from stock_analyzer.telegram import (
+    TelegramConfigError,
+    TelegramSendError,
+    TelegramSender,
+    fetch_recent_chat_ids,
+)
 
 
 class _FakeResponse:
@@ -10,9 +15,10 @@ class _FakeResponse:
         self.ok = ok
         self.status_code = status_code
         self._description = description
+        self.payload: dict[str, object] = {"description": description}
 
     def json(self) -> dict[str, object]:
-        return {"description": self._description}
+        return self.payload
 
 
 def test_dry_run_does_not_require_credentials(capsys: pytest.CaptureFixture[str]) -> None:
@@ -92,3 +98,58 @@ def test_telegram_http_errors_do_not_include_token(monkeypatch: pytest.MonkeyPat
         sender.send("hello")
 
     assert "secret-token" not in str(exc_info.value)
+
+
+def test_fetch_recent_chat_ids_requires_token() -> None:
+    with pytest.raises(TelegramConfigError, match="TELEGRAM_BOT_TOKEN"):
+        fetch_recent_chat_ids(None)
+
+
+def test_fetch_recent_chat_ids_dedupes_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = _FakeResponse()
+    response.payload = {
+        "ok": True,
+        "result": [
+            {
+                "message": {
+                    "chat": {
+                        "id": 123,
+                        "type": "private",
+                        "first_name": "Srikar",
+                    }
+                }
+            },
+            {
+                "edited_message": {
+                    "chat": {
+                        "id": 123,
+                        "type": "private",
+                        "first_name": "Srikar",
+                    }
+                }
+            },
+            {
+                "channel_post": {
+                    "chat": {
+                        "id": -100456,
+                        "type": "channel",
+                        "title": "Stock Alerts",
+                    }
+                }
+            },
+        ],
+    }
+    calls: list[dict[str, object]] = []
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        calls.append({"url": url, "timeout": timeout})
+        return response
+
+    monkeypatch.setattr("stock_analyzer.telegram.requests.get", fake_get)
+
+    chats = fetch_recent_chat_ids("token", timeout_seconds=4)
+
+    assert [chat.chat_id for chat in chats] == ["123", "-100456"]
+    assert chats[0].display_name == "Srikar"
+    assert chats[1].display_name == "Stock Alerts"
+    assert calls[0]["timeout"] == 4

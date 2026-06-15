@@ -65,6 +65,12 @@ Send exactly one safe Telegram test message:
 python -m stock_analyzer.app telegram-test --live
 ```
 
+Retrieve your Telegram chat ID after you message the bot:
+
+```bash
+python -m stock_analyzer.app telegram-chat-id
+```
+
 Run every 3 hours:
 
 ```bash

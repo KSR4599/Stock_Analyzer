@@ -34,6 +34,7 @@ Implemented:
 - SQLite audit history.
 - Telegram sender with live-mode config validation and chat allowlist.
 - `telegram-test` command for one-message live verification.
+- `telegram-chat-id` command for retrieving recent bot chat IDs.
 - targeted symbol scans with `--symbols`.
 - scheduled loop command.
 - OCI `systemd` service/timer templates.
