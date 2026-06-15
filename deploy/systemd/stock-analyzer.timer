@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Stock Analyzer every 3 hours
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+Persistent=true
+RandomizedDelaySec=5m
+AccuracySec=1m
+Unit=stock-analyzer.service
+
+[Install]
+WantedBy=timers.target

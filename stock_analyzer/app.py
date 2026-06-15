@@ -12,10 +12,10 @@ from stock_analyzer.catalysts import (
     apply_catalyst_signals,
 )
 from stock_analyzer.catalysts.base import CatalystProvider
-from stock_analyzer.config import Settings, load_settings
+from stock_analyzer.config import Settings, clamp_alert_budget, load_settings
 from stock_analyzer.database import StockDatabase
 from stock_analyzer.providers import DataProvider, YFinanceProvider
-from stock_analyzer.reporting import format_report
+from stock_analyzer.reporting import format_error_alert, format_report
 from stock_analyzer.scoring import rank_symbols
 from stock_analyzer.telegram import TelegramSender
 from stock_analyzer.universe import build_universe
@@ -52,8 +52,20 @@ def build_catalyst_provider(settings: Settings) -> CatalystProvider:
     raise ValueError(f"Unsupported catalyst provider: {settings.catalyst_provider}")
 
 
+def build_telegram_sender(settings: Settings) -> TelegramSender:
+    return TelegramSender(
+        bot_token=settings.telegram_bot_token,
+        chat_id=settings.telegram_chat_id,
+        dry_run=settings.dry_run,
+        timeout_seconds=settings.request_timeout_seconds,
+        allowed_chat_ids=settings.allowed_telegram_chat_ids,
+    )
+
+
 def run_once(settings: Settings) -> str:
     run_at = datetime.now(ZoneInfo(settings.timezone))
+    telegram_sender = build_telegram_sender(settings)
+    telegram_sender.validate_live_config()
     provider = build_provider(settings)
     catalyst_provider = build_catalyst_provider(settings)
     database = StockDatabase(settings.db_path)
@@ -105,6 +117,7 @@ def run_once(settings: Settings) -> str:
     database.insert_scores(run_id=run_id, scores=scores)
     database.update_run_summary(run_id=run_id, scores=scores)
 
+    report_kind = "candidate_alert" if any(score.is_alert for score in scores) else "scheduled_report"
     report = format_report(
         scores=scores,
         run_at=run_at,
@@ -117,13 +130,9 @@ def run_once(settings: Settings) -> str:
         threshold=settings.alert_score_threshold,
         top_n=settings.top_n,
         send_only_alerts=settings.send_only_alerts,
+        report_kind=report_kind,
     )
-    TelegramSender(
-        bot_token=settings.telegram_bot_token,
-        chat_id=settings.telegram_chat_id,
-        dry_run=settings.dry_run,
-        timeout_seconds=settings.request_timeout_seconds,
-    ).send(report)
+    telegram_sender.send(report, message_kind=report_kind)
     return report
 
 
@@ -133,19 +142,31 @@ def schedule(settings: Settings) -> None:
         try:
             run_once(settings)
         except Exception as exc:
-            error_message = f"Stock analyzer run failed: {exc}"
-            TelegramSender(
-                bot_token=settings.telegram_bot_token,
-                chat_id=settings.telegram_chat_id,
-                dry_run=settings.dry_run,
-                timeout_seconds=settings.request_timeout_seconds,
-            ).send(error_message)
+            run_at = datetime.now(ZoneInfo(settings.timezone))
+            error_message = format_error_alert(error=exc, run_at=run_at)
+            try:
+                build_telegram_sender(settings).send(error_message, message_kind="error_alert")
+            except Exception as send_exc:
+                print(f"Failed to send error alert: {type(send_exc).__name__}")
         time.sleep(interval_seconds)
 
 
 def initialize_database(settings: Settings) -> None:
     StockDatabase(settings.db_path).initialize()
     print(f"Initialized database at {settings.db_path}")
+
+
+def send_telegram_test(settings: Settings) -> str:
+    run_at = datetime.now(ZoneInfo(settings.timezone))
+    message = "\n".join(
+        [
+            f"Stock Analyzer Telegram test - {run_at.strftime('%Y-%m-%d %H:%M %Z')}",
+            "This is a single safe test message.",
+            "No market scan was run and no trade action is enabled.",
+        ]
+    )
+    build_telegram_sender(settings).send(message, message_kind="telegram_test")
+    return message
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,6 +178,12 @@ def parse_args() -> argparse.Namespace:
 
     schedule_parser = subparsers.add_parser("schedule", help="Run forever on the configured interval")
     _add_common_options(schedule_parser)
+
+    telegram_test_parser = subparsers.add_parser(
+        "telegram-test",
+        help="Send one Telegram configuration test message",
+    )
+    _add_common_options(telegram_test_parser)
 
     init_parser = subparsers.add_parser("init-db", help="Initialize SQLite schema")
     _add_common_options(init_parser)
@@ -195,7 +222,7 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
     if args.threshold is not None:
         overrides["alert_score_threshold"] = args.threshold
     if args.budget is not None:
-        overrides["alert_budget"] = args.budget
+        overrides["alert_budget"] = clamp_alert_budget(args.budget)
     if args.db_path is not None:
         from pathlib import Path
 
@@ -237,6 +264,8 @@ def main() -> None:
         run_once(settings)
     elif args.command == "schedule":
         schedule(settings)
+    elif args.command == "telegram-test":
+        send_telegram_test(settings)
     elif args.command == "init-db":
         initialize_database(settings)
     else:

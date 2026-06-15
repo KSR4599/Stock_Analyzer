@@ -1,0 +1,20 @@
+[Unit]
+Description=Stock Analyzer scheduled Telegram scan
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=stock-analyzer
+Group=stock-analyzer
+WorkingDirectory=/opt/stock-analyzer
+EnvironmentFile=/etc/stock-analyzer/stock-analyzer.env
+ExecStart=/opt/stock-analyzer/.venv/bin/python -m stock_analyzer.app run-once --live
+TimeoutStartSec=30min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/stock-analyzer/data /var/log/stock-analyzer
+LogsDirectory=stock-analyzer

@@ -17,12 +17,13 @@ def format_report(
     threshold: float,
     top_n: int,
     send_only_alerts: bool = False,
+    report_kind: str = "scheduled_report",
 ) -> str:
     alerts = [score for score in scores if score.is_alert]
     visible_scores = alerts if send_only_alerts else scores[:top_n]
 
     lines = [
-        f"Moonshot scan - {run_at.strftime('%Y-%m-%d %H:%M %Z')}",
+        f"{_report_title(report_kind)} - {run_at.strftime('%Y-%m-%d %H:%M %Z')}",
         f"Provider: {provider} | Universe: {universe_size} ({universe_source})",
         f"Catalysts: {catalyst_provider} | Enriched top market names: {catalyst_top_n}",
         f"Trigger: ${budget:.0f} candidate at score >= {threshold:.1f}",
@@ -32,7 +33,7 @@ def format_report(
     if alerts:
         lines.append(f"ALERTS: {len(alerts)} candidate(s) cleared the threshold.")
     else:
-        lines.append("No $250 candidate cleared the threshold this run.")
+        lines.append(f"No ${budget:.0f} candidate cleared the threshold this run.")
 
     lines.append("")
 
@@ -68,3 +69,24 @@ def format_report(
         ]
     )
     return "\n".join(lines)
+
+
+def format_error_alert(error: Exception, run_at: datetime) -> str:
+    error_type = type(error).__name__
+    return "\n".join(
+        [
+            f"Stock Analyzer error alert - {run_at.strftime('%Y-%m-%d %H:%M %Z')}",
+            f"Error type: {error_type}",
+            "A scheduled scan failed before completion. Check the local service logs for details.",
+            "",
+            "Note: secrets are intentionally omitted from this alert.",
+        ]
+    )
+
+
+def _report_title(report_kind: str) -> str:
+    titles = {
+        "scheduled_report": "Stock Analyzer scheduled report",
+        "candidate_alert": "Stock Analyzer candidate alert",
+    }
+    return titles.get(report_kind, "Stock Analyzer report")

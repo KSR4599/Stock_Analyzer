@@ -19,7 +19,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the full system design, topology, r
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints.txt
 cp .env.example .env
 ```
 
@@ -28,9 +28,10 @@ Set Telegram values in `.env` or export them in your shell:
 ```bash
 export TELEGRAM_BOT_TOKEN="..."
 export TELEGRAM_CHAT_ID="..."
+export ALLOWED_TELEGRAM_CHAT_IDS="..."
 ```
 
-The app automatically reads a local `.env` file when present.
+For the MVP, `ALLOWED_TELEGRAM_CHAT_IDS` should usually match `TELEGRAM_CHAT_ID` exactly. The app automatically reads a local `.env` file when present, but `.env` must never be committed.
 
 ## Commands
 
@@ -58,6 +59,12 @@ Run a live Telegram scan:
 python -m stock_analyzer.app run-once --live
 ```
 
+Send exactly one safe Telegram test message:
+
+```bash
+python -m stock_analyzer.app telegram-test --live
+```
+
 Run every 3 hours:
 
 ```bash
@@ -69,6 +76,8 @@ Initialize only the database:
 ```bash
 python -m stock_analyzer.app init-db
 ```
+
+For OCI deployment with `systemd`, see [Deployment](docs/DEPLOYMENT.md).
 
 ## Scoring
 
@@ -84,6 +93,8 @@ The first score is a market-data "Moonshot Score" that favors rapid-upside setup
 - controlled but meaningful volatility
 
 It penalizes illiquidity, broken downtrends, severe drawdowns, extreme volatility, and recent one-day pump risk. When a score clears `STOCK_ANALYZER_ALERT_SCORE_THRESHOLD` and passes liquidity, strength, trend, and risk gates, the report marks it as a `$250 candidate`.
+
+The configured alert budget is capped at `$250` in code for the MVP, even if a larger value is provided through environment variables or CLI flags.
 
 By default, the app uses free SEC EDGAR filing enrichment for the top market-ranked names. SEC enrichment considers:
 

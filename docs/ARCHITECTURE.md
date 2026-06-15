@@ -32,14 +32,17 @@ Implemented:
 - SEC EDGAR catalyst/risk provider.
 - optional FMP catalyst provider code path.
 - SQLite audit history.
-- Telegram-ready sender.
+- Telegram sender with live-mode config validation and chat allowlist.
+- `telegram-test` command for one-message live verification.
 - targeted symbol scans with `--symbols`.
 - scheduled loop command.
+- OCI `systemd` service/timer templates.
+- GitHub Actions test workflow.
 - unit tests.
 
 Not implemented yet:
 
-- live Telegram bot credentials/config on server.
+- live Telegram bot credentials/config on your server.
 - OpenAI/LLM explanation layer.
 - real-time news/social trend provider.
 - portfolio tracking.
@@ -73,7 +76,7 @@ Not implemented yet:
 
 - **Telegram Bot API**
   - Alert transport.
-  - Current code can send messages when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set.
+  - Current code sends messages only when `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `ALLOWED_TELEGRAM_CHAT_IDS` are safely configured.
 
 ### Catalyst Providers
 
@@ -127,9 +130,20 @@ stock_analyzer/
 tests/
   test_app.py
   test_catalysts.py
+  test_config.py
+  test_reporting.py
   test_scoring.py
   test_sec_provider.py
+  test_telegram.py
   test_universe.py
+deploy/
+  stock-analyzer.env.example
+  systemd/
+    stock-analyzer.service
+    stock-analyzer.timer
+.github/
+  workflows/tests.yml
+  dependabot.yml
 ```
 
 ## Runtime Data Flow
@@ -145,7 +159,11 @@ flowchart TD
     G --> H[Catalyst Score Blender]
     H --> I[SQLite Audit Storage]
     H --> J[Report Formatter]
-    J --> K[Telegram Sender or Dry Run Output]
+    J --> K[Telegram Sender]
+    K --> L{Dry Run?}
+    L -->|yes| M[Console Output]
+    L -->|no| N[Allowlist Validation]
+    N --> O[Telegram HTTPS Send]
 ```
 
 ## Deployment Topologies
@@ -182,6 +200,7 @@ OCI Always Free VM
   -> SQLite database on VM disk
   -> outbound HTTPS to yfinance / SEC / Telegram
   -> Telegram alerts to user
+  -> no inbound ports for MVP
 ```
 
 This is the recommended first deployment because it is cheap and operationally simple.
@@ -343,6 +362,9 @@ Current guardrails:
 - secrets expected via `.env` or environment variables.
 - `.env` is ignored by git.
 - dry-run mode by default.
+- live Telegram sends require an explicit chat allowlist.
+- unknown Telegram chat IDs are rejected before network send.
+- Telegram HTTP failures are reported without echoing bot tokens.
 - catalyst data is bounded and heuristic.
 
 Required future guardrails:
@@ -443,11 +465,12 @@ Status: complete.
 
 ### Phase 3: Telegram Live Alerts
 
-Status: next.
+Status: in progress.
 
-- configure Telegram bot token.
-- configure chat allowlist.
-- run scheduled alerts.
+- Telegram sender safety layer.
+- chat allowlist validation.
+- one-message test command.
+- configure Telegram bot token on local/server environment.
 - send only useful candidate/watch reports.
 
 ### Phase 4: News And Trend Intelligence
@@ -490,7 +513,7 @@ Status: pending.
 
 ### Phase 8: OCI Deployment
 
-Status: pending.
+Status: scaffolded.
 
 - systemd service/timer.
 - secret management.

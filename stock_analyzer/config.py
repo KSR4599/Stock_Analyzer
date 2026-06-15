@@ -5,6 +5,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 
+MAX_ALERT_BUDGET = 250.0
+
+
 def _load_dotenv(path: Path = Path(".env")) -> None:
     if not path.exists():
         return
@@ -53,6 +56,24 @@ def _csv_env(name: str, default: list[str]) -> list[str]:
     if raw is None or raw.strip() == "":
         return default
     return [item.strip().upper() for item in raw.split(",") if item.strip()]
+
+
+def _string_csv_env(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _optional_string_env(name: str) -> str | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.strip()
+
+
+def clamp_alert_budget(value: float) -> float:
+    return max(0.0, min(value, MAX_ALERT_BUDGET))
 
 
 DEFAULT_EXTRA_SYMBOLS = [
@@ -106,6 +127,7 @@ class Settings:
     max_symbols_per_batch: int = 120
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    allowed_telegram_chat_ids: list[str] | None = None
     request_timeout_seconds: float = 20.0
     timezone: str = "America/Los_Angeles"
 
@@ -115,12 +137,19 @@ class Settings:
 
 def load_settings() -> Settings:
     _load_dotenv()
+    telegram_chat_id = _optional_string_env("TELEGRAM_CHAT_ID")
+    allowed_telegram_chat_ids = _string_csv_env("ALLOWED_TELEGRAM_CHAT_IDS", [])
+    if not allowed_telegram_chat_ids and telegram_chat_id:
+        allowed_telegram_chat_ids = [telegram_chat_id]
+
     return Settings(
         provider=os.getenv("STOCK_ANALYZER_PROVIDER", "yfinance").strip().lower(),
         db_path=Path(os.getenv("STOCK_ANALYZER_DB_PATH", "data/stock_analyzer.sqlite3")),
         dry_run=_bool_env("STOCK_ANALYZER_DRY_RUN", True),
         interval_hours=_float_env("STOCK_ANALYZER_INTERVAL_HOURS", 3.0),
-        alert_budget=_float_env("STOCK_ANALYZER_ALERT_BUDGET", 250.0),
+        alert_budget=clamp_alert_budget(
+            _float_env("STOCK_ANALYZER_ALERT_BUDGET", MAX_ALERT_BUDGET)
+        ),
         alert_score_threshold=_float_env("STOCK_ANALYZER_ALERT_SCORE_THRESHOLD", 78.0),
         top_n=_int_env("STOCK_ANALYZER_TOP_N", 10),
         send_only_alerts=_bool_env("STOCK_ANALYZER_SEND_ONLY_ALERTS", False),
@@ -134,7 +163,7 @@ def load_settings() -> Settings:
         ),
         sec_lookback_days=_int_env("STOCK_ANALYZER_SEC_LOOKBACK_DAYS", 14),
         sec_max_filings=_int_env("STOCK_ANALYZER_SEC_MAX_FILINGS", 20),
-        fmp_api_key=os.getenv("FMP_API_KEY"),
+        fmp_api_key=_optional_string_env("FMP_API_KEY"),
         include_sp500=_bool_env("STOCK_ANALYZER_INCLUDE_SP500", True),
         manual_symbols=_csv_env("STOCK_ANALYZER_SYMBOLS", []),
         extra_symbols=_csv_env("STOCK_ANALYZER_EXTRA_SYMBOLS", DEFAULT_EXTRA_SYMBOLS),
@@ -142,8 +171,9 @@ def load_settings() -> Settings:
         history_period=os.getenv("STOCK_ANALYZER_HISTORY_PERIOD", "1y"),
         history_interval=os.getenv("STOCK_ANALYZER_HISTORY_INTERVAL", "1d"),
         max_symbols_per_batch=_int_env("STOCK_ANALYZER_MAX_SYMBOLS_PER_BATCH", 120),
-        telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
-        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
+        telegram_bot_token=_optional_string_env("TELEGRAM_BOT_TOKEN"),
+        telegram_chat_id=telegram_chat_id,
+        allowed_telegram_chat_ids=allowed_telegram_chat_ids,
         request_timeout_seconds=_float_env("STOCK_ANALYZER_REQUEST_TIMEOUT_SECONDS", 20.0),
         timezone=os.getenv("STOCK_ANALYZER_TIMEZONE", "America/Los_Angeles"),
     )
