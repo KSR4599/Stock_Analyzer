@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+
+def _load_dotenv(path: Path = Path(".env")) -> None:
+    if not path.exists():
+        return
+
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return float(raw)
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return int(raw)
+
+
+def _optional_int_env(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return int(raw)
+
+
+def _csv_env(name: str, default: list[str]) -> list[str]:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return [item.strip().upper() for item in raw.split(",") if item.strip()]
+
+
+DEFAULT_EXTRA_SYMBOLS = [
+    "SMCI",
+    "ARM",
+    "SOUN",
+    "MU",
+    "SNDK",
+    "MRVL",
+    "INTC",
+    "NVDA",
+    "AMD",
+    "AVGO",
+    "TSM",
+    "ASML",
+    "PLTR",
+    "CRWD",
+    "NET",
+    "IONQ",
+    "RGTI",
+    "QBTS",
+    "ASTS",
+    "RKLB",
+]
+
+
+@dataclass(frozen=True)
+class Settings:
+    provider: str = "yfinance"
+    db_path: Path = Path("data/stock_analyzer.sqlite3")
+    dry_run: bool = True
+    interval_hours: float = 3.0
+    alert_budget: float = 250.0
+    alert_score_threshold: float = 78.0
+    top_n: int = 10
+    send_only_alerts: bool = False
+    catalyst_provider: str = "sec"
+    catalyst_top_n: int = 12
+    catalyst_lookback_hours: int = 72
+    catalyst_max_news_articles: int = 6
+    sec_user_agent: str = "stock-analyzer/0.1 personal research contact@example.com"
+    sec_lookback_days: int = 14
+    sec_max_filings: int = 20
+    fmp_api_key: str | None = None
+    include_sp500: bool = True
+    manual_symbols: list[str] | None = None
+    extra_symbols: list[str] | None = None
+    max_symbols: int | None = None
+    history_period: str = "1y"
+    history_interval: str = "1d"
+    max_symbols_per_batch: int = 120
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    request_timeout_seconds: float = 20.0
+    timezone: str = "America/Los_Angeles"
+
+    def with_overrides(self, **kwargs: object) -> "Settings":
+        return replace(self, **kwargs)
+
+
+def load_settings() -> Settings:
+    _load_dotenv()
+    return Settings(
+        provider=os.getenv("STOCK_ANALYZER_PROVIDER", "yfinance").strip().lower(),
+        db_path=Path(os.getenv("STOCK_ANALYZER_DB_PATH", "data/stock_analyzer.sqlite3")),
+        dry_run=_bool_env("STOCK_ANALYZER_DRY_RUN", True),
+        interval_hours=_float_env("STOCK_ANALYZER_INTERVAL_HOURS", 3.0),
+        alert_budget=_float_env("STOCK_ANALYZER_ALERT_BUDGET", 250.0),
+        alert_score_threshold=_float_env("STOCK_ANALYZER_ALERT_SCORE_THRESHOLD", 78.0),
+        top_n=_int_env("STOCK_ANALYZER_TOP_N", 10),
+        send_only_alerts=_bool_env("STOCK_ANALYZER_SEND_ONLY_ALERTS", False),
+        catalyst_provider=os.getenv("STOCK_ANALYZER_CATALYST_PROVIDER", "sec").strip().lower(),
+        catalyst_top_n=_int_env("STOCK_ANALYZER_CATALYST_TOP_N", 12),
+        catalyst_lookback_hours=_int_env("STOCK_ANALYZER_CATALYST_LOOKBACK_HOURS", 72),
+        catalyst_max_news_articles=_int_env("STOCK_ANALYZER_CATALYST_MAX_NEWS_ARTICLES", 6),
+        sec_user_agent=os.getenv(
+            "SEC_USER_AGENT",
+            "stock-analyzer/0.1 personal research contact@example.com",
+        ),
+        sec_lookback_days=_int_env("STOCK_ANALYZER_SEC_LOOKBACK_DAYS", 14),
+        sec_max_filings=_int_env("STOCK_ANALYZER_SEC_MAX_FILINGS", 20),
+        fmp_api_key=os.getenv("FMP_API_KEY"),
+        include_sp500=_bool_env("STOCK_ANALYZER_INCLUDE_SP500", True),
+        manual_symbols=_csv_env("STOCK_ANALYZER_SYMBOLS", []),
+        extra_symbols=_csv_env("STOCK_ANALYZER_EXTRA_SYMBOLS", DEFAULT_EXTRA_SYMBOLS),
+        max_symbols=_optional_int_env("STOCK_ANALYZER_MAX_SYMBOLS"),
+        history_period=os.getenv("STOCK_ANALYZER_HISTORY_PERIOD", "1y"),
+        history_interval=os.getenv("STOCK_ANALYZER_HISTORY_INTERVAL", "1d"),
+        max_symbols_per_batch=_int_env("STOCK_ANALYZER_MAX_SYMBOLS_PER_BATCH", 120),
+        telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
+        telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
+        request_timeout_seconds=_float_env("STOCK_ANALYZER_REQUEST_TIMEOUT_SECONDS", 20.0),
+        timezone=os.getenv("STOCK_ANALYZER_TIMEZONE", "America/Los_Angeles"),
+    )
