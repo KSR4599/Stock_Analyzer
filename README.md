@@ -85,6 +85,8 @@ python -m stock_analyzer.app init-db
 
 For OCI deployment with `systemd`, see [Deployment](docs/DEPLOYMENT.md).
 
+For running every 3 hours from this Mac before OCI, see [Local Scheduling](docs/LOCAL_SCHEDULING.md).
+
 ## Scoring
 
 The first score is a market-data "Moonshot Score" that favors rapid-upside setups:
