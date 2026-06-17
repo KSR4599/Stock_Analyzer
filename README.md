@@ -53,6 +53,18 @@ Dry run without catalyst enrichment:
 python -m stock_analyzer.app run-once --dry-run --no-catalysts
 ```
 
+Dry run with FMP catalyst enrichment after setting `FMP_API_KEY`:
+
+```bash
+python -m stock_analyzer.app run-once --dry-run --catalyst-provider fmp --symbols ARM,MRVL,MU,SOUN,SMCI --top-n 5 --catalyst-top-n 5
+```
+
+Verify FMP access without sending Telegram messages:
+
+```bash
+python -m stock_analyzer.app fmp-test --symbol NVDA
+```
+
 Run a live Telegram scan:
 
 ```bash
@@ -128,6 +140,8 @@ When `FMP_API_KEY` is configured and `STOCK_ANALYZER_CATALYST_PROVIDER=fmp`, the
 - analyst price-target upside/downside when available
 
 The catalyst layer can lift a strong `watch` name into a `candidate`, but it cannot turn a weak `skip` into an automatic `$250 candidate` by itself.
+
+FMP should be used as a top-ranked catalyst layer first, not as the broad S&P 500 market-data engine. The free Basic plan is useful for endpoint testing but has a low daily call budget, so keep `STOCK_ANALYZER_CATALYST_TOP_N` small while testing.
 
 ## Future Provider
 

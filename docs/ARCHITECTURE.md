@@ -31,6 +31,7 @@ Implemented:
 - deterministic rapid-upside scoring engine.
 - SEC EDGAR catalyst/risk provider.
 - optional FMP catalyst provider code path.
+- FMP endpoint smoke test command.
 - SQLite audit history.
 - Telegram sender with live-mode config validation and chat allowlist.
 - `telegram-test` command for one-message live verification.
@@ -89,6 +90,7 @@ Not implemented yet:
   - Optional future paid/low-cost provider.
   - Code path exists but is inactive until `FMP_API_KEY` is set and `STOCK_ANALYZER_CATALYST_PROVIDER=fmp`.
   - Intended for news, earnings, analyst grades, and price targets.
+  - Should be used on a short top-ranked list first to control call volume.
 
 ### Future Technologies
 

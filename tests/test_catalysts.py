@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from stock_analyzer.catalysts.base import CatalystSignal
-from stock_analyzer.catalysts.fmp_provider import build_fmp_signal
+from stock_analyzer.catalysts.fmp_provider import FmpApiError, FmpCatalystProvider, build_fmp_signal, run_fmp_smoke_test
 from stock_analyzer.catalysts.scoring import apply_catalyst_signals
 from stock_analyzer.models import StockScore
 
@@ -48,6 +48,47 @@ def test_fmp_signal_penalizes_negative_news() -> None:
 
     assert signal.score_delta < 0
     assert signal.risks
+
+
+def test_fmp_http_error_does_not_leak_api_key(monkeypatch) -> None:
+    class Response:
+        status_code = 401
+        ok = False
+
+    def fake_get(*args, **kwargs):
+        return Response()
+
+    monkeypatch.setattr("stock_analyzer.catalysts.fmp_provider.requests.get", fake_get)
+    provider = FmpCatalystProvider(api_key="secret-key")
+
+    try:
+        provider._get("profile", {"symbol": "AAPL"})
+    except FmpApiError as exc:
+        assert "secret-key" not in str(exc)
+        assert "authorization failed" in str(exc)
+    else:
+        raise AssertionError("expected FmpApiError")
+
+
+def test_fmp_smoke_test_reports_endpoint_counts(monkeypatch) -> None:
+    def fake_get(self, endpoint, params):
+        if endpoint == "price-target-summary":
+            return {"symbol": params["symbol"]}
+        return [{"symbol": params.get("symbol") or params.get("symbols")}]
+
+    monkeypatch.setattr(FmpCatalystProvider, "_get", fake_get)
+
+    checks = run_fmp_smoke_test(api_key="secret-key", symbol="NVDA")
+
+    assert len(checks) == 5
+    assert all(check.ok for check in checks)
+    assert {check.name for check in checks} == {
+        "profile",
+        "stock_news",
+        "earnings",
+        "analyst_grades",
+        "price_target_summary",
+    }
 
 
 def test_catalyst_can_upgrade_watch_but_not_skip() -> None:

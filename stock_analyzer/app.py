@@ -7,9 +7,11 @@ from zoneinfo import ZoneInfo
 
 from stock_analyzer.catalysts import (
     FmpCatalystProvider,
+    FmpEndpointCheck,
     NullCatalystProvider,
     SecEdgarCatalystProvider,
     apply_catalyst_signals,
+    run_fmp_smoke_test,
 )
 from stock_analyzer.catalysts.base import CatalystProvider
 from stock_analyzer.config import Settings, clamp_alert_budget, load_settings
@@ -192,6 +194,29 @@ def print_telegram_chat_ids(settings: Settings) -> list[TelegramChat]:
     return chats
 
 
+def run_fmp_test(settings: Settings, symbol: str) -> list[FmpEndpointCheck]:
+    if not settings.fmp_api_key:
+        raise SystemExit("FMP_API_KEY is required. Add it to .env before running fmp-test.")
+
+    symbols = _dedupe_symbols([symbol])
+    if not symbols:
+        raise SystemExit("A non-empty --symbol is required for fmp-test.")
+    clean_symbol = symbols[0]
+    checks = run_fmp_smoke_test(
+        api_key=settings.fmp_api_key,
+        symbol=clean_symbol,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
+    print(f"FMP smoke test for {clean_symbol}")
+    print("Calls used: 5")
+    for check in checks:
+        status = "OK" if check.ok else "FAIL"
+        print(f"- {check.name}: {status} ({check.item_count} item(s)) {check.message}")
+    if not all(check.ok for check in checks):
+        raise SystemExit("FMP smoke test failed. Check plan access, rate limits, and API key.")
+    return checks
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Moonshot stock analyzer")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -214,6 +239,13 @@ def parse_args() -> argparse.Namespace:
     )
     telegram_chat_id_parser.add_argument("--timeout", type=float, help="Telegram request timeout seconds")
 
+    fmp_test_parser = subparsers.add_parser(
+        "fmp-test",
+        help="Verify configured FMP API access without sending Telegram messages",
+    )
+    fmp_test_parser.add_argument("--symbol", default="NVDA", help="Symbol to use for endpoint checks")
+    fmp_test_parser.add_argument("--timeout", type=float, help="FMP request timeout seconds")
+
     init_parser = subparsers.add_parser("init-db", help="Initialize SQLite schema")
     _add_common_options(init_parser)
 
@@ -231,6 +263,11 @@ def _add_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--budget", type=float, help="Candidate alert budget")
     parser.add_argument("--db-path", help="SQLite database path")
     parser.add_argument("--no-catalysts", action="store_true", help="Disable catalyst enrichment")
+    parser.add_argument(
+        "--catalyst-provider",
+        choices=["sec", "fmp", "none"],
+        help="Catalyst enrichment provider for this run",
+    )
     parser.add_argument("--catalyst-top-n", type=int, help="Number of top market-ranked names to enrich")
 
 
@@ -258,6 +295,8 @@ def settings_from_args(args: argparse.Namespace) -> Settings:
         overrides["db_path"] = Path(args.db_path)
     if getattr(args, "no_catalysts", False):
         overrides["catalyst_provider"] = "none"
+    if getattr(args, "catalyst_provider", None) is not None:
+        overrides["catalyst_provider"] = args.catalyst_provider
     if getattr(args, "catalyst_top_n", None) is not None:
         overrides["catalyst_top_n"] = args.catalyst_top_n
     if getattr(args, "timeout", None) is not None:
@@ -300,6 +339,8 @@ def main() -> None:
             send_telegram_test(settings)
         elif args.command == "telegram-chat-id":
             print_telegram_chat_ids(settings)
+        elif args.command == "fmp-test":
+            run_fmp_test(settings, symbol=args.symbol)
         elif args.command == "init-db":
             initialize_database(settings)
         else:

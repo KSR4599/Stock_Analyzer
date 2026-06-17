@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -73,6 +74,18 @@ NEGATIVE_KEYWORDS = {
 }
 
 
+class FmpApiError(RuntimeError):
+    """Raised for FMP API failures without exposing the API key."""
+
+
+@dataclass(frozen=True)
+class FmpEndpointCheck:
+    name: str
+    ok: bool
+    item_count: int = 0
+    message: str = ""
+
+
 class FmpCatalystProvider(CatalystProvider):
     name = "fmp"
 
@@ -100,7 +113,7 @@ class FmpCatalystProvider(CatalystProvider):
             earnings = self._get("earnings", {"symbol": symbol, "limit": 6})
             grades = self._get("grades", {"symbol": symbol, "limit": 6})
             price_targets = self._get("price-target-summary", {"symbol": symbol})
-        except requests.RequestException as exc:
+        except FmpApiError as exc:
             return CatalystSignal(
                 symbol=symbol,
                 provider=self.name,
@@ -118,13 +131,62 @@ class FmpCatalystProvider(CatalystProvider):
         )
 
     def _get(self, endpoint: str, params: dict[str, Any]) -> Any:
-        response = requests.get(
-            f"{FMP_BASE_URL}/{endpoint}",
-            params={**params, "apikey": self.api_key},
-            timeout=self.timeout_seconds,
+        try:
+            response = requests.get(
+                f"{FMP_BASE_URL}/{endpoint}",
+                params={**params, "apikey": self.api_key},
+                timeout=self.timeout_seconds,
+            )
+        except requests.RequestException as exc:
+            raise FmpApiError(f"{endpoint} request failed: {type(exc).__name__}") from None
+
+        if response.status_code in {401, 403}:
+            raise FmpApiError(f"{endpoint} authorization failed")
+        if response.status_code == 429:
+            raise FmpApiError(f"{endpoint} rate limit reached")
+        if not response.ok:
+            raise FmpApiError(f"{endpoint} failed with HTTP {response.status_code}")
+
+        try:
+            return response.json()
+        except ValueError:
+            raise FmpApiError(f"{endpoint} returned invalid JSON") from None
+
+
+def run_fmp_smoke_test(
+    api_key: str,
+    symbol: str = "NVDA",
+    timeout_seconds: float = 20.0,
+) -> list[FmpEndpointCheck]:
+    provider = FmpCatalystProvider(
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+        max_news_articles=2,
+    )
+    endpoints = [
+        ("profile", "profile", {"symbol": symbol}),
+        ("stock_news", "news/stock", {"symbols": symbol, "limit": 2}),
+        ("earnings", "earnings", {"symbol": symbol, "limit": 2}),
+        ("analyst_grades", "grades", {"symbol": symbol, "limit": 2}),
+        ("price_target_summary", "price-target-summary", {"symbol": symbol}),
+    ]
+
+    checks: list[FmpEndpointCheck] = []
+    for name, endpoint, params in endpoints:
+        try:
+            payload = provider._get(endpoint, params)
+        except FmpApiError as exc:
+            checks.append(FmpEndpointCheck(name=name, ok=False, message=str(exc)))
+            continue
+        checks.append(
+            FmpEndpointCheck(
+                name=name,
+                ok=True,
+                item_count=len(_as_list(payload)),
+                message="ok",
+            )
         )
-        response.raise_for_status()
-        return response.json()
+    return checks
 
 
 def build_fmp_signal(
