@@ -114,6 +114,34 @@ def test_fmp_provider_keeps_partial_endpoint_results(monkeypatch) -> None:
     assert any("grades authorization failed" in risk for risk in signal.risks)
 
 
+def test_catalyst_endpoint_warning_is_preserved_without_scored_event() -> None:
+    watch = StockScore(
+        symbol="ARM",
+        score=75,
+        market_score=75,
+        last_price=100,
+        action="watch",
+        suggested_amount=0,
+        risk_level="medium",
+        risks=["Market risk."],
+    )
+    signal = CatalystSignal(
+        symbol="ARM",
+        provider="fmp",
+        risks=["FMP news/stock failed with HTTP 402"],
+    )
+
+    enriched = apply_catalyst_signals(
+        [watch],
+        signals={"ARM": signal},
+        alert_threshold=78,
+        budget=250,
+    )[0]
+
+    assert "FMP news/stock failed with HTTP 402" in enriched.risks
+    assert "Market risk." in enriched.risks
+
+
 def test_catalyst_can_upgrade_watch_but_not_skip() -> None:
     watch = StockScore(
         symbol="WATCH",

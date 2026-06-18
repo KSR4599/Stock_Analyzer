@@ -141,7 +141,7 @@ When `FMP_API_KEY` is configured and `STOCK_ANALYZER_CATALYST_PROVIDER=fmp`, the
 
 The catalyst layer can lift a strong `watch` name into a `candidate`, but it cannot turn a weak `skip` into an automatic `$250 candidate` by itself.
 
-FMP should be used as a top-ranked catalyst layer first, not as the broad S&P 500 market-data engine. The free Basic plan is useful for endpoint testing but has a low daily call budget. The app therefore caps FMP enrichment to `STOCK_ANALYZER_FMP_MAX_SYMBOLS_PER_RUN=5` by default. With four enrichment endpoints and eight scheduled runs per day, that is at most 160 calls per day, excluding manual tests.
+FMP should be used as a top-ranked catalyst layer first, not as the broad S&P 500 market-data engine. The free Basic plan is useful for endpoint and sample-symbol testing but may return HTTP 402 for catalyst data on target symbols. Run `fmp-test` against a real target such as `ARM`, not only a sample symbol such as `NVDA`, before enabling it. The app caps FMP enrichment to `STOCK_ANALYZER_FMP_MAX_SYMBOLS_PER_RUN=5` by default. With four enrichment endpoints and eight scheduled runs per day, that is at most 160 calls per day, excluding manual tests.
 
 FMP endpoint access varies by plan. If one optional endpoint is unavailable, the provider keeps any usable news, earnings, grade, or target data from the other endpoints and reports the unavailable source as a risk note.
 

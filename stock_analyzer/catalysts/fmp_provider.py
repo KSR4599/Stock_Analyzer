@@ -167,6 +167,8 @@ class FmpCatalystProvider(CatalystProvider):
 
         if response.status_code in {401, 403}:
             raise FmpApiError(f"{endpoint} authorization failed")
+        if response.status_code == 402:
+            raise FmpApiError(f"{endpoint} requires plan access (HTTP 402)")
         if response.status_code == 429:
             raise FmpApiError(f"{endpoint} rate limit reached")
         if not response.ok:

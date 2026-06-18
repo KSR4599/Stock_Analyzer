@@ -49,7 +49,7 @@ def _apply_signal(
 
     if signal.score_delta == 0 and not signal.events:
         reasons = score.reasons
-        risks = score.risks
+        risks = _dedupe([*signal.risks, *score.risks])
     else:
         reasons = [*signal.reasons[:3], *score.reasons]
         risks = [*signal.risks[:3], *score.risks]
