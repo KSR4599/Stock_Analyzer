@@ -40,3 +40,15 @@ def test_alert_budget_is_capped_at_250(
     settings = load_settings()
 
     assert settings.alert_budget == MAX_ALERT_BUDGET
+
+
+def test_fmp_symbol_cap_defaults_to_five(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("STOCK_ANALYZER_FMP_MAX_SYMBOLS_PER_RUN", raising=False)
+
+    settings = load_settings()
+
+    assert settings.fmp_max_symbols_per_run == 5

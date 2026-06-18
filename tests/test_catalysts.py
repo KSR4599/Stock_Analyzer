@@ -91,6 +91,29 @@ def test_fmp_smoke_test_reports_endpoint_counts(monkeypatch) -> None:
     }
 
 
+def test_fmp_provider_keeps_partial_endpoint_results(monkeypatch) -> None:
+    def fake_get(self, endpoint, params):
+        if endpoint == "grades":
+            raise FmpApiError("grades authorization failed")
+        if endpoint == "news/stock":
+            return [
+                {
+                    "publishedDate": "2026-06-15T10:00:00",
+                    "title": "NVDA announces AI data center partnership",
+                }
+            ]
+        return []
+
+    monkeypatch.setattr(FmpCatalystProvider, "_get", fake_get)
+    provider = FmpCatalystProvider(api_key="secret-key")
+
+    signal = provider.fetch_signals(["NVDA"], RUN_AT)["NVDA"]
+
+    assert signal.score_delta > 0
+    assert signal.events
+    assert any("grades authorization failed" in risk for risk in signal.risks)
+
+
 def test_catalyst_can_upgrade_watch_but_not_skip() -> None:
     watch = StockScore(
         symbol="WATCH",

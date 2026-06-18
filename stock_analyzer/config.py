@@ -114,6 +114,7 @@ class Settings:
     catalyst_top_n: int = 12
     catalyst_lookback_hours: int = 72
     catalyst_max_news_articles: int = 6
+    fmp_max_symbols_per_run: int = 5
     sec_user_agent: str = "stock-analyzer/0.1 personal research contact@example.com"
     sec_lookback_days: int = 14
     sec_max_filings: int = 20
@@ -157,6 +158,7 @@ def load_settings() -> Settings:
         catalyst_top_n=_int_env("STOCK_ANALYZER_CATALYST_TOP_N", 12),
         catalyst_lookback_hours=_int_env("STOCK_ANALYZER_CATALYST_LOOKBACK_HOURS", 72),
         catalyst_max_news_articles=_int_env("STOCK_ANALYZER_CATALYST_MAX_NEWS_ARTICLES", 6),
+        fmp_max_symbols_per_run=_int_env("STOCK_ANALYZER_FMP_MAX_SYMBOLS_PER_RUN", 5),
         sec_user_agent=os.getenv(
             "SEC_USER_AGENT",
             "stock-analyzer/0.1 personal research contact@example.com",

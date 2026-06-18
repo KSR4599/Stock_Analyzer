@@ -107,7 +107,10 @@ def run_once(settings: Settings) -> str:
         enrichment_symbols = []
         catalyst_signals = {}
     else:
-        enrichment_symbols = [score.symbol for score in scores[: settings.catalyst_top_n]]
+        enrichment_limit = settings.catalyst_top_n
+        if catalyst_provider.name == "fmp":
+            enrichment_limit = min(enrichment_limit, settings.fmp_max_symbols_per_run)
+        enrichment_symbols = [score.symbol for score in scores[:enrichment_limit]]
         catalyst_signals = catalyst_provider.fetch_signals(enrichment_symbols, run_at)
     scores = apply_catalyst_signals(
         scores=scores,

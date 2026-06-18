@@ -108,19 +108,21 @@ class FmpCatalystProvider(CatalystProvider):
         return signals
 
     def _fetch_symbol_signal(self, symbol: str, run_at: datetime) -> CatalystSignal:
-        try:
-            news = self._get("news/stock", {"symbols": symbol, "limit": self.max_news_articles})
-            earnings = self._get("earnings", {"symbol": symbol, "limit": 6})
-            grades = self._get("grades", {"symbol": symbol, "limit": 6})
-            price_targets = self._get("price-target-summary", {"symbol": symbol})
-        except FmpApiError as exc:
-            return CatalystSignal(
-                symbol=symbol,
-                provider=self.name,
-                risks=[f"FMP catalyst fetch failed: {exc}"],
-            )
+        endpoint_errors: list[str] = []
+        news = self._get_optional(
+            "news/stock",
+            {"symbols": symbol, "limit": self.max_news_articles},
+            endpoint_errors,
+        )
+        earnings = self._get_optional("earnings", {"symbol": symbol, "limit": 6}, endpoint_errors)
+        grades = self._get_optional("grades", {"symbol": symbol, "limit": 6}, endpoint_errors)
+        price_targets = self._get_optional(
+            "price-target-summary",
+            {"symbol": symbol},
+            endpoint_errors,
+        )
 
-        return build_fmp_signal(
+        signal = build_fmp_signal(
             symbol=symbol,
             run_at=run_at,
             news=_as_list(news),
@@ -129,6 +131,29 @@ class FmpCatalystProvider(CatalystProvider):
             price_targets=_as_list(price_targets),
             lookback_hours=self.lookback_hours,
         )
+        if not endpoint_errors:
+            return signal
+        return CatalystSignal(
+            symbol=signal.symbol,
+            score_delta=signal.score_delta,
+            confidence=signal.confidence,
+            provider=signal.provider,
+            reasons=signal.reasons,
+            risks=_dedupe([*signal.risks, *endpoint_errors])[:5],
+            events=signal.events,
+        )
+
+    def _get_optional(
+        self,
+        endpoint: str,
+        params: dict[str, Any],
+        errors: list[str],
+    ) -> Any:
+        try:
+            return self._get(endpoint, params)
+        except FmpApiError as exc:
+            errors.append(f"FMP {exc}")
+            return []
 
     def _get(self, endpoint: str, params: dict[str, Any]) -> Any:
         try:
