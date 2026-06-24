@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Stock Decision Cockpit</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">PRIVATE · READ ONLY</p>
+      <h1>Stock Decision Cockpit</h1>
+      <p class="subtitle">Portfolio, signals, evidence, and operational truth in one place.</p>
+    </div>
+    <div id="global-health" class="health-pill loading">Loading health…</div>
+  </header>
+
+  <nav class="tabs" aria-label="Dashboard sections">
+    <button class="tab active" data-view="overview">Overview</button>
+    <button class="tab" data-view="portfolio">Portfolio</button>
+    <button class="tab" data-view="ideas">Research ideas</button>
+    <button class="tab" data-view="performance">Performance &amp; operations</button>
+  </nav>
+
+  <main>
+    <section id="view-overview" class="view active">
+      <div id="health-banner" class="health-grid"></div>
+      <div id="summary-cards" class="metric-grid"></div>
+      <div id="decision-pulse" class="pulse-strip"></div>
+      <div class="dashboard-grid">
+        <article class="panel allocation-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">PORTFOLIO</p><h2>Allocation</h2></div>
+            <span id="allocation-as-of" class="as-of"></span>
+          </div>
+          <div class="allocation-layout">
+            <div id="allocation-chart" class="donut" aria-label="Portfolio allocation chart">
+              <div><strong id="allocation-count">—</strong><span>positions</span></div>
+            </div>
+            <div id="allocation-legend" class="legend"></div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">PRODUCTION SEC</p><h2>Latest candidates</h2></div>
+            <span id="production-as-of" class="as-of"></span>
+          </div>
+          <div id="production-candidates" class="idea-list compact"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">SIGNAL VELOCITY</p><h2>Biggest movers</h2></div>
+            <span class="as-of">vs prior comparable run</span>
+          </div>
+          <div id="signal-movers" class="mover-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">SOURCE CHECK</p><h2>Production vs shadow</h2></div>
+            <span id="agreement-summary" class="as-of"></span>
+          </div>
+          <p class="panel-note">Disagreement is a research prompt, never an automatic action.</p>
+          <div id="source-agreement" class="agreement-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">SHADOW CONTEXT</p><h2>Experimental signals</h2></div>
+            <span id="shadow-as-of" class="as-of"></span>
+          </div>
+          <p class="panel-note">Context only. Shadow evidence cannot drive portfolio actions.</p>
+          <div id="shadow-candidates" class="idea-list compact"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">SINCE LAST REVIEW</p><h2>What changed?</h2></div>
+          </div>
+          <div id="change-feed" class="change-feed"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="view-portfolio" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">HOLDINGS</p><h2>Portfolio positions</h2></div>
+        <div class="controls">
+          <input id="portfolio-search" type="search" placeholder="Filter symbols or actions" autocomplete="off">
+          <select id="portfolio-action" aria-label="Filter by action">
+            <option value="">All actions</option>
+            <option>EXIT REVIEW</option>
+            <option>TRIM REVIEW</option>
+            <option>BUY-MORE REVIEW</option>
+            <option>WATCH</option>
+            <option>HOLD</option>
+          </select>
+          <select id="portfolio-sort" aria-label="Sort portfolio">
+            <option value="allocation">Sort: allocation</option>
+            <option value="pl">Sort: P/L</option>
+            <option value="score">Sort: score</option>
+            <option value="symbol">Sort: symbol</option>
+          </select>
+        </div>
+      </div>
+      <div id="portfolio-alerts" class="notice-list"></div>
+      <div class="panel table-panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Ticker</th><th>Action</th><th>Qty</th><th>Price</th>
+              <th>Value</th><th>Alloc.</th><th>Avg cost</th><th>P/L</th>
+              <th>Day</th><th>5 day</th><th>Score</th><th>Streak</th>
+            </tr></thead>
+            <tbody id="portfolio-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dashboard-grid two">
+        <article class="panel"><p class="eyebrow">HISTORY</p><h2>Portfolio value</h2><div id="value-chart" class="line-chart"></div></article>
+        <article class="panel"><p class="eyebrow">HISTORY</p><h2>Action mix</h2><div id="action-history" class="stack-list"></div></article>
+      </div>
+    </section>
+
+    <section id="view-ideas" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">RESEARCH</p><h2>Ranked deterministic ideas</h2></div>
+        <div class="controls">
+          <input id="idea-search" type="search" placeholder="Filter ideas" autocomplete="off">
+          <select id="idea-source" aria-label="Idea source">
+            <option value="production">Production SEC</option>
+            <option value="shadow">Shadow context</option>
+          </select>
+          <select id="idea-sort" aria-label="Sort ideas">
+            <option value="score">Sort: score</option>
+            <option value="movement">Sort: movement</option>
+            <option value="evidence">Sort: evidence</option>
+            <option value="symbol">Sort: symbol</option>
+            <option value="outcomes">Sort: outcome samples</option>
+          </select>
+        </div>
+      </div>
+      <div id="idea-source-note" class="source-note"></div>
+      <div id="ideas-grid" class="ideas-grid"></div>
+    </section>
+
+    <section id="view-performance" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">MEASURED RESULTS</p><h2>Performance &amp; operations</h2></div>
+        <select id="performance-dimension" aria-label="Performance grouping">
+          <option value="overall">Overall</option>
+          <option value="score_band">By score band</option>
+          <option value="action">By action</option>
+          <option value="setup">By setup</option>
+          <option value="source">By source</option>
+        </select>
+      </div>
+      <div class="panel table-panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Group</th><th>Horizon</th><th>Samples</th><th>Win rate</th>
+              <th>Average</th><th>Median</th><th>Vs benchmark</th>
+              <th>Favorable</th><th>Adverse</th>
+            </tr></thead>
+            <tbody id="performance-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dashboard-grid two">
+        <article class="panel"><p class="eyebrow">DATA PROVIDERS</p><h2>Seven-day reliability</h2><div id="provider-health" class="provider-list"></div></article>
+        <article class="panel"><p class="eyebrow">SCHEDULERS</p><h2>Local LaunchAgents</h2><div id="scheduler-health" class="provider-list"></div></article>
+      </div>
+      <article class="panel"><p class="eyebrow">SHADOW PROMOTION</p><h2>Activation gate</h2><div id="shadow-gate" class="provider-list"></div></article>
+    </section>
+  </main>
+
+  <aside id="stock-drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-backdrop" data-close-drawer></div>
+    <div class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <button class="drawer-close" data-close-drawer aria-label="Close stock details">×</button>
+      <div id="drawer-content"></div>
+    </div>
+  </aside>
+
+  <div id="error-toast" class="toast" role="alert"></div>
+  <script src="/static/dashboard.js" defer></script>
+</body>
+</html>

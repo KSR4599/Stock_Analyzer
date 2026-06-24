@@ -18,6 +18,12 @@ def test_candidate_alert_report_is_labeled_and_budgeted() -> None:
                 last_price=10,
                 action="candidate",
                 suggested_amount=250,
+                metrics={
+                    "signal_state": "new_candidate",
+                    "score_delta": 8,
+                    "rank_delta": 4,
+                    "new_reasons": ["strong breakout"],
+                },
                 reasons=["strong breakout"],
                 risks=["high volatility"],
             )
@@ -37,6 +43,7 @@ def test_candidate_alert_report_is_labeled_and_budgeted() -> None:
     assert report.startswith("Stock Analyzer candidate alert")
     assert "Trigger: $250 candidate" in report
     assert "ALERTS: 1 candidate" in report
+    assert "Change: new candidate | score +8.0 | rank +4 | 1 new insight" in report
 
 
 def test_error_alert_omits_exception_details() -> None:
@@ -47,3 +54,27 @@ def test_error_alert_omits_exception_details() -> None:
     assert report.startswith("Stock Analyzer error alert")
     assert "RuntimeError" in report
     assert "token=secret should not be echoed" not in report
+
+
+def test_degraded_market_report_suppresses_candidates_visibly() -> None:
+    report = format_report(
+        scores=[],
+        run_at=RUN_AT,
+        provider="yfinance",
+        catalyst_provider="sec",
+        catalyst_top_n=0,
+        universe_source="manual",
+        universe_size=5,
+        budget=250,
+        threshold=78,
+        top_n=5,
+        market_requested=5,
+        market_received=3,
+        market_coverage_pct=60,
+        market_degraded=True,
+        market_failures=["MU", "ARM"],
+    )
+
+    assert "Market data: 3/5 (60.0%) | DEGRADED" in report
+    assert "Candidate alerts were suppressed" in report
+    assert "MU, ARM" in report

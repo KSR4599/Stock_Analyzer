@@ -20,7 +20,7 @@ The long-term goal is an autonomous investing agent with strict human and techni
 
 ## Current Status
 
-Current stage: **research scanner with market scoring and free SEC enrichment**.
+Current stage: **research scanner with production SEC enrichment and a multi-source shadow stack**.
 
 Implemented:
 
@@ -30,6 +30,14 @@ Implemented:
 - yfinance market data provider.
 - deterministic rapid-upside scoring engine.
 - SEC EDGAR catalyst/risk provider.
+- SEC XBRL fundamentals, 8-K item interpretation, and Form 4 transaction parsing.
+- calibrated Finnhub news/earnings/recommendation provider.
+- Marketaux, Alpha Vantage, and FRED provider implementations and smoke tests.
+- bounded multi-source contribution aggregation and cross-source event deduplication.
+- persistent provider cache, call audit, normalized events, score contributions, and shadow reviews.
+- market-data retry, coverage auditing, and degraded-scan candidate suppression.
+- automatic 1/3/5/10/21-trading-day forward outcome measurement.
+- privacy-minimized personal portfolio snapshots and review monitoring.
 - optional FMP catalyst provider code path.
 - FMP endpoint smoke test command.
 - SQLite audit history.
@@ -46,7 +54,7 @@ Not implemented yet:
 
 - live Telegram bot credentials/config on your server.
 - OpenAI/LLM explanation layer.
-- real-time news/social trend provider.
+- completed seven-day multi-source shadow evaluation.
 - portfolio tracking.
 - sell/trim rules.
 - broker integration.
@@ -92,6 +100,30 @@ Not implemented yet:
   - Intended for news, earnings, analyst grades, and price targets.
   - Should be used on a short top-ranked list first to control call volume.
 
+- **Finnhub**
+  - Optional bake-off provider.
+  - Code path is inactive until `FINNHUB_API_KEY` is set and `STOCK_ANALYZER_CATALYST_PROVIDER=finnhub`.
+  - Uses relevant company news, earnings calendar, and recommendation changes.
+  - Price targets remain smoke-test-only because the endpoint is premium.
+  - Is capped to five enriched symbols by default.
+
+- **Marketaux**
+  - Optional free news bake-off provider.
+  - Uses entity match score, sentiment, and similar-story grouping.
+  - Is capped to five symbols and one request per symbol per scan.
+
+- **Alpha Vantage**
+  - Optional daily fundamental and estimate-revision provider.
+  - Uses `OVERVIEW` and `EARNINGS_ESTIMATES`.
+  - Caches for 24 hours and enforces a hard 20-call daily budget.
+  - Spaces remote calls by at least 12.5 seconds to respect free-tier throttling.
+
+- **FRED**
+  - Optional 12-hour market-regime provider.
+  - Tracks VIX, Treasury yields, high-yield spread, and fed funds.
+  - Combines them with SPY, QQQ, IWM, and SOXX trends.
+  - Can only reduce scores or add risk context.
+
 ### Future Technologies
 
 - **OpenAI API**
@@ -126,9 +158,17 @@ stock_analyzer/
     base.py               market data provider interface
     yfinance_provider.py  yfinance implementation
   catalysts/
+    aggregation.py        category and total score caps
     base.py               catalyst provider interface
+    models.py             structured evidence models
+    news.py               relevance, clustering, recency, and news scoring
     scoring.py            catalyst score blending
     sec_provider.py       SEC EDGAR enrichment
+    finnhub_provider.py   optional Finnhub enrichment
+    marketaux_provider.py optional entity-matched news
+    alpha_vantage_provider.py optional daily fundamentals
+    fred_provider.py      optional market regime
+    composite_provider.py multi-source shadow aggregation
     fmp_provider.py       optional FMP enrichment
 tests/
   test_app.py
@@ -158,9 +198,9 @@ flowchart TD
     C --> D[yfinance Market Provider]
     D --> E[Market Scoring Engine]
     E --> F[Top N Catalyst Enrichment]
-    F --> G[SEC or FMP Catalyst Provider]
-    G --> H[Catalyst Score Blender]
-    H --> I[SQLite Audit Storage]
+    F --> G[Single Provider or Multi-Source Shadow Stack]
+    G --> H[Deduplicate and Apply Category Caps]
+    H --> I[SQLite Cache, Calls, Events, and Contributions]
     H --> J[Report Formatter]
     J --> K[Telegram Sender]
     K --> L{Dry Run?}
@@ -269,8 +309,10 @@ Output:
 
 Inputs:
 
-- SEC filings by default.
-- FMP news/earnings/analyst data when configured.
+- SEC filings, XBRL fundamentals, and insider transactions.
+- relevant and deduplicated news.
+- earnings events and estimate revisions.
+- downside-only market regime.
 
 Output:
 
@@ -283,6 +325,9 @@ Guardrail:
 
 - catalysts can lift a strong `watch` into `candidate`.
 - catalysts cannot turn a weak `skip` into an automatic `$250 candidate`.
+- total catalyst enrichment is capped at `-15/+10`.
+- macro context cannot add positive points.
+- shadow-only providers cannot send Telegram messages.
 
 ## Current Data Sources
 
@@ -332,6 +377,59 @@ Limitations:
 
 - free tier may not be enough for every-3-hour enrichment across many tickers.
 - should be used only for a short top-ranked list to control cost.
+
+### Finnhub Optional
+
+Intended for:
+
+- company news.
+- recent and upcoming earnings-calendar events.
+- recommendation-trend consensus.
+- price targets when the configured plan permits access.
+
+Operational guardrails:
+
+- API keys are sent in a header rather than a query string.
+- three enrichment calls per symbol.
+- five symbols per run by default.
+- partial endpoint results are retained.
+- SEC remains the scheduled production default during the bake-off.
+
+### Free-First Multi-Source Shadow Mode
+
+`--catalyst-provider multi` composes configured sources and stores:
+
+- provider cache payloads and timestamps.
+- provider call outcome, endpoint, symbol, cache status, and item count.
+- normalized news events.
+- bounded per-category contributions.
+- shadow run identity and manual candidate-transition reviews.
+
+Activation requires at least seven days and twenty scans, at least 95% provider success, positive contribution p95 no higher than `+8`, zero duplicate scored stories, and review of every candidate-state change. Use `shadow-status` and `shadow-review` to operate this gate.
+
+Only non-degraded scans count. yfinance failures are retried in smaller batches
+and then individually. A run is degraded when usable universe coverage is below
+the configured threshold, SPY is unavailable, or no symbols can be ranked.
+Degraded runs remain in SQLite for audit but skip catalysts and suppress
+candidate allocations. Use `market-health --days 7` to inspect coverage.
+
+## Forward Outcome Measurement
+
+Each successful scan uses its already-downloaded histories to mature earlier
+signal outcomes when enough future trading bars exist. SQLite stores entry and
+exit prices, absolute and SPY-relative return, maximum favorable excursion, and
+maximum adverse excursion.
+
+`outcome-status` groups these scan observations by horizon and original action.
+Multiple scans of the same symbol remain auditable but are correlated, so the
+later calibration phase must also cluster contiguous signal episodes before
+interpreting statistical significance.
+
+`calibration-status` now performs that clustering with a configurable 36-hour
+default gap. It keeps the earliest matured observation for each episode and
+horizon, then reports returns by original action and score band. Maximum
+favorable excursion is bounded at zero or higher and maximum adverse excursion
+at zero or lower.
 
 ## Storage Choice
 
@@ -446,6 +544,65 @@ Sell recommendations should always consider:
 - original thesis.
 - user-specified max risk.
 
+## Portfolio Privacy Boundary
+
+Portfolio PDFs are transient input. The application does not copy, archive,
+hash, cache, or persist their text or path. The only imported financial fields
+allowed across the persistence boundary are:
+
+- symbol.
+- quantity.
+- average cost.
+
+Account identifiers, names, SSNs, addresses, cash, totals, gains/losses,
+pending activity, tax lots, RSU grant IDs, and vesting schedules are excluded.
+WMT is also excluded as a symbol because the user's WMT holdings are RSUs.
+This exclusion applies before parsing, at database write boundaries, in
+scanner universes, and in all dashboard and historical calculations.
+Parser failures use generic page/row error codes without source text. SQLite,
+the installed portfolio plist, and portfolio logs are owner-only.
+
+Imports are preview-then-apply. Sanitized snapshot history is retained, but raw
+statements are not. The portfolio monitor combines market scoring and SEC
+evidence for every holding, while optional multi-source evidence is context
+only for prioritized holdings until the shadow activation gate passes.
+
+## Local Decision Cockpit
+
+The dashboard is a separate localhost-only read model over the existing SQLite
+audit trail. Flask binds to `127.0.0.1`; every dashboard database connection
+uses SQLite URI `mode=ro` plus `PRAGMA query_only=ON`. The HTTP surface contains
+GET endpoints only, rejects non-loopback hosts, grants no CORS access, and uses
+a restrictive Content Security Policy with locally bundled assets.
+
+Evidence classes remain explicit: SEC scans are production research,
+multi-source scans are labeled shadow context, portfolio labels remain
+review-only, and outcomes show sample counts and measured returns instead of
+synthetic confidence. Missing fundamentals, estimates, or scenarios render as
+unavailable rather than being inferred.
+
+The analysis layer compares each scan with the previous healthy run from the
+same source class. Score/rank movement, candidate transitions, new reasons,
+new risks, and resolved risks are persisted with the score. This prevents a
+repeated snapshot from being presented as fresh analysis and gives reports a
+deterministic "what changed" layer.
+
+Portfolio analysis completion and Telegram notification delivery are persisted
+as separate statuses. A notification outage is therefore visible without
+discarding a successfully computed review.
+
+Production universe and portfolio notifications are PDF-first. ReportLab
+builds each document in memory, Telegram receives it through `sendDocument`,
+and the bytes are discarded immediately after delivery. The persisted status
+distinguishes analysis completion, PDF generation, PDF delivery, and concise
+text fallback. Shadow scans remain internal and cannot produce an actionable
+Telegram PDF.
+
+Scheduled macOS services execute from an owner-only runtime under
+`~/Library/Application Support/StockAnalyzer`, not from the Desktop checkout.
+The runtime contains its own virtual environment, `.env`, SQLite database,
+logs, temporary workspace, and rollback backups.
+
 ## Roadmap
 
 ### Phase 1: Scanner Foundation
@@ -468,24 +625,26 @@ Status: complete.
 
 ### Phase 3: Telegram Live Alerts
 
-Status: in progress.
+Status: complete.
 
 - Telegram sender safety layer.
 - chat allowlist validation.
 - one-message test command.
 - configure Telegram bot token on local/server environment.
-- send only useful candidate/watch reports.
+- send a Universe Alert PDF for every completed production scan.
+- send a Portfolio Alert PDF for every completed portfolio review.
+- keep shadow scans internal.
 
 ### Phase 4: News And Trend Intelligence
 
-Status: pending.
+Status: implemented in shadow mode.
 
-- choose FMP or another provider.
-- enrich only top-ranked names.
-- add real-time news.
-- add earnings calendar.
-- add analyst changes.
-- add sector/theme heat.
+- calibrated Finnhub news and earnings.
+- Marketaux entity-match bake-off path.
+- Alpha Vantage fundamentals and estimate revisions.
+- SEC XBRL, 8-K item, Form 4, and dilution intelligence.
+- FRED plus equity-benchmark market regime.
+- seven-day/twenty-scan activation gate still pending.
 
 ### Phase 5: LLM Explanation Layer
 
@@ -498,21 +657,21 @@ Status: pending.
 
 ### Phase 6: Manual Portfolio Mode
 
-Status: pending.
+Status: complete.
 
-- manually entered holdings.
-- hold/trim/exit review.
-- thesis tracking.
-- position sizing risk.
+- privacy-minimized Fidelity position import with preview/apply.
+- WMT/RSU exclusion at every boundary.
+- hold/watch/buy-more/trim/exit review labels.
+- action history, stability analysis, and position sizing risk.
 
 ### Phase 7: Backtesting And Calibration
 
-Status: pending.
+Status: in progress.
 
 - historical replay.
 - false-positive analysis.
-- threshold tuning.
-- performance tracking.
+- episode-adjusted threshold tuning.
+- forward performance tracking.
 
 ### Phase 8: OCI Deployment
 

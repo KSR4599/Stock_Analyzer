@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import requests
 
 from stock_analyzer.config import DEFAULT_EXTRA_SYMBOLS
+from stock_analyzer.exclusions import EXCLUDED_ANALYSIS_SYMBOLS
 
 SP500_WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 REQUEST_HEADERS = {
@@ -108,7 +109,11 @@ def build_universe(
     else:
         symbols = [*sp500_symbols, *extras]
 
-    deduped = _dedupe(symbols)
+    deduped = [
+        symbol
+        for symbol in _dedupe(symbols)
+        if symbol not in EXCLUDED_ANALYSIS_SYMBOLS
+    ]
 
     if max_symbols is not None:
         deduped = deduped[:max_symbols]

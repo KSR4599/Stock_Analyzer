@@ -1,6 +1,10 @@
 beautifulsoup4>=4.12,<5
+flask>=3.1,<4
 numpy>=1.26,<3
 pandas>=2.2,<3
+pdfplumber>=0.11,<1
+pypdf>=5,<7
 pytest>=8,<10
 requests>=2.31,<3
+reportlab>=4.2,<5
 yfinance>=0.2.40,<2

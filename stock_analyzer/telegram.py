@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import textwrap
+import time
 
 import requests
 
@@ -32,11 +33,15 @@ class TelegramSender:
         dry_run: bool,
         timeout_seconds: float = 20.0,
         allowed_chat_ids: list[str] | None = None,
+        max_attempts: int = 3,
+        retry_delay_seconds: float = 1.0,
     ) -> None:
         self.bot_token = bot_token.strip() if bot_token else None
         self.chat_id = chat_id.strip() if chat_id else None
         self.dry_run = dry_run
         self.timeout_seconds = timeout_seconds
+        self.max_attempts = max(1, max_attempts)
+        self.retry_delay_seconds = max(0.0, retry_delay_seconds)
         self.allowed_chat_ids = {
             allowed_chat_id.strip()
             for allowed_chat_id in allowed_chat_ids or []
@@ -52,6 +57,59 @@ class TelegramSender:
         self.validate_live_config()
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         for chunk in _split_message(message):
+            self._send_chunk(url, chunk)
+
+    def send_document(
+        self,
+        document: bytes,
+        filename: str,
+        caption: str,
+        document_kind: str = "document",
+    ) -> None:
+        if not document.startswith(b"%PDF-"):
+            raise ValueError("Telegram document is not a PDF.")
+        if self.dry_run:
+            print(
+                f"[telegram dry-run:{document_kind}] "
+                f"{filename} ({len(document)} bytes)"
+            )
+            print(caption)
+            return
+
+        self.validate_live_config()
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
+        last_error = "Telegram document send failed"
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                response = requests.post(
+                    url,
+                    data={
+                        "chat_id": self.chat_id,
+                        "caption": caption[:1024],
+                    },
+                    files={
+                        "document": (filename, document, "application/pdf"),
+                    },
+                    timeout=self.timeout_seconds,
+                )
+            except requests.RequestException as exc:
+                last_error = (
+                    f"Telegram document send failed: {type(exc).__name__}"
+                )
+            else:
+                if response.ok:
+                    return
+                last_error = _telegram_error_message(response)
+                if response.status_code < 500 and response.status_code != 429:
+                    raise TelegramSendError(last_error)
+
+            if attempt < self.max_attempts:
+                time.sleep(self.retry_delay_seconds * attempt)
+        raise TelegramSendError(last_error)
+
+    def _send_chunk(self, url: str, chunk: str) -> None:
+        last_error = "Telegram send failed"
+        for attempt in range(1, self.max_attempts + 1):
             try:
                 response = requests.post(
                     url,
@@ -63,10 +121,17 @@ class TelegramSender:
                     timeout=self.timeout_seconds,
                 )
             except requests.RequestException as exc:
-                raise TelegramSendError(f"Telegram send failed: {type(exc).__name__}") from None
+                last_error = f"Telegram send failed: {type(exc).__name__}"
+            else:
+                if response.ok:
+                    return
+                last_error = _telegram_error_message(response)
+                if response.status_code < 500 and response.status_code != 429:
+                    raise TelegramSendError(last_error)
 
-            if not response.ok:
-                raise TelegramSendError(_telegram_error_message(response))
+            if attempt < self.max_attempts:
+                time.sleep(self.retry_delay_seconds * attempt)
+        raise TelegramSendError(last_error)
 
     def validate_live_config(self) -> None:
         if self.dry_run:
@@ -187,7 +252,11 @@ def _split_message(message: str) -> list[str]:
     remaining = message
     while remaining:
         chunk = remaining[:TELEGRAM_LIMIT]
-        split_at = chunk.rfind("\n")
+        split_at = chunk.rfind("\n\n")
+        if split_at >= TELEGRAM_LIMIT // 2:
+            split_at += 1
+        else:
+            split_at = chunk.rfind("\n")
         if split_at < TELEGRAM_LIMIT // 2:
             split_at = TELEGRAM_LIMIT
         chunks.append(remaining[:split_at])

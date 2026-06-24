@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.stock-analyzer.shadow</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PROJECT_DIR__/.venv/bin/python</string>
+    <string>-m</string>
+    <string>stock_analyzer.app</string>
+    <string>run-once</string>
+    <string>--dry-run</string>
+    <string>--catalyst-provider</string>
+    <string>multi</string>
+    <string>--symbols</string>
+    <string>ARM,MRVL,MU,SOUN,SMCI</string>
+    <string>--top-n</string>
+    <string>5</string>
+    <string>--catalyst-top-n</string>
+    <string>10</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_DIR__</string>
+
+  <key>StartInterval</key>
+  <integer>28800</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>Umask</key>
+  <integer>63</integer>
+
+  <key>StandardOutPath</key>
+  <string>__PROJECT_DIR__/logs/stock-analyzer-shadow.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__PROJECT_DIR__/logs/stock-analyzer-shadow.err.log</string>
+</dict>
+</plist>

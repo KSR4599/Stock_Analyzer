@@ -52,3 +52,25 @@ def test_fmp_symbol_cap_defaults_to_five(
     settings = load_settings()
 
     assert settings.fmp_max_symbols_per_run == 5
+
+
+def test_finnhub_symbol_cap_defaults_to_five(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("STOCK_ANALYZER_FINNHUB_MAX_SYMBOLS_PER_RUN", raising=False)
+
+    settings = load_settings()
+
+    assert settings.finnhub_max_symbols_per_run == 5
+
+
+def test_free_provider_budgets_have_safe_defaults(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    settings = load_settings()
+
+    assert settings.marketaux_max_symbols_per_run == 5
+    assert settings.alpha_vantage_max_symbols_per_run == 10
+    assert settings.alpha_vantage_daily_call_budget == 20

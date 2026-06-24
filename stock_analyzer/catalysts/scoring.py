@@ -32,7 +32,7 @@ def _apply_signal(
         )
 
     market_score = score.market_score if score.market_score is not None else score.score
-    catalyst_delta = float(np.clip(signal.score_delta, -25, 25))
+    catalyst_delta = float(np.clip(signal.score_delta, -15, 10))
     final_score = round(float(np.clip(market_score + catalyst_delta, 0, 100)), 1)
     action = _action_after_catalyst(score.action, market_score, final_score, alert_threshold, score.risk_level)
     suggested_amount = float(budget) if action == "candidate" else 0.0
@@ -46,6 +46,17 @@ def _apply_signal(
         "catalyst_score": round(catalyst_delta, 1),
         "catalyst_confidence": round(signal.confidence, 2),
     }
+    for category in {
+        contribution.category for contribution in signal.contributions
+    }:
+        metrics[f"catalyst_{category}"] = round(
+            sum(
+                contribution.score_delta
+                for contribution in signal.contributions
+                if contribution.category == category
+            ),
+            2,
+        )
 
     if signal.score_delta == 0 and not signal.events:
         reasons = score.reasons

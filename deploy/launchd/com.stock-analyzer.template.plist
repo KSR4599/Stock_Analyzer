@@ -24,6 +24,9 @@
   <key>RunAtLoad</key>
   <false/>
 
+  <key>Umask</key>
+  <integer>63</integer>
+
   <key>StandardOutPath</key>
   <string>__PROJECT_DIR__/logs/stock-analyzer-launchd.out.log</string>
 

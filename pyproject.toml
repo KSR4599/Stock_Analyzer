@@ -9,8 +9,12 @@ description = "Telegram-first moonshot stock analyzer with pluggable market data
 requires-python = ">=3.10"
 dependencies = [
     "beautifulsoup4>=4.12",
+    "flask>=3.1,<4",
     "numpy>=1.26",
     "pandas>=2.2",
+    "pdfplumber>=0.11,<1",
+    "pypdf>=5.0,<7",
+    "reportlab>=4.2,<5",
     "requests>=2.31",
     "yfinance>=0.2.40",
 ]
@@ -22,6 +26,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["stock_analyzer*"]
+
+[tool.setuptools.package-data]
+stock_analyzer = ["templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

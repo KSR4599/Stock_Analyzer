@@ -114,11 +114,20 @@ class Settings:
     catalyst_top_n: int = 12
     catalyst_lookback_hours: int = 72
     catalyst_max_news_articles: int = 6
+    finnhub_max_symbols_per_run: int = 5
     fmp_max_symbols_per_run: int = 5
+    marketaux_max_symbols_per_run: int = 5
+    alpha_vantage_max_symbols_per_run: int = 10
+    marketaux_min_match_score: float = 10.0
+    alpha_vantage_daily_call_budget: int = 20
     sec_user_agent: str = "stock-analyzer/0.1 personal research contact@example.com"
     sec_lookback_days: int = 14
     sec_max_filings: int = 20
+    finnhub_api_key: str | None = None
     fmp_api_key: str | None = None
+    marketaux_api_token: str | None = None
+    alpha_vantage_api_key: str | None = None
+    fred_api_key: str | None = None
     include_sp500: bool = True
     manual_symbols: list[str] | None = None
     extra_symbols: list[str] | None = None
@@ -126,6 +135,7 @@ class Settings:
     history_period: str = "1y"
     history_interval: str = "1d"
     max_symbols_per_batch: int = 120
+    min_market_coverage_pct: float = 90.0
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     allowed_telegram_chat_ids: list[str] | None = None
@@ -158,14 +168,32 @@ def load_settings() -> Settings:
         catalyst_top_n=_int_env("STOCK_ANALYZER_CATALYST_TOP_N", 12),
         catalyst_lookback_hours=_int_env("STOCK_ANALYZER_CATALYST_LOOKBACK_HOURS", 72),
         catalyst_max_news_articles=_int_env("STOCK_ANALYZER_CATALYST_MAX_NEWS_ARTICLES", 6),
+        finnhub_max_symbols_per_run=_int_env("STOCK_ANALYZER_FINNHUB_MAX_SYMBOLS_PER_RUN", 5),
         fmp_max_symbols_per_run=_int_env("STOCK_ANALYZER_FMP_MAX_SYMBOLS_PER_RUN", 5),
+        marketaux_max_symbols_per_run=_int_env("STOCK_ANALYZER_MARKETAUX_MAX_SYMBOLS_PER_RUN", 5),
+        alpha_vantage_max_symbols_per_run=_int_env(
+            "STOCK_ANALYZER_ALPHA_VANTAGE_MAX_SYMBOLS_PER_RUN",
+            10,
+        ),
+        marketaux_min_match_score=_float_env(
+            "STOCK_ANALYZER_MARKETAUX_MIN_MATCH_SCORE",
+            10.0,
+        ),
+        alpha_vantage_daily_call_budget=_int_env(
+            "STOCK_ANALYZER_ALPHA_VANTAGE_DAILY_CALL_BUDGET",
+            20,
+        ),
         sec_user_agent=os.getenv(
             "SEC_USER_AGENT",
             "stock-analyzer/0.1 personal research contact@example.com",
         ),
         sec_lookback_days=_int_env("STOCK_ANALYZER_SEC_LOOKBACK_DAYS", 14),
         sec_max_filings=_int_env("STOCK_ANALYZER_SEC_MAX_FILINGS", 20),
+        finnhub_api_key=_optional_string_env("FINNHUB_API_KEY"),
         fmp_api_key=_optional_string_env("FMP_API_KEY"),
+        marketaux_api_token=_optional_string_env("MARKETAUX_API_TOKEN"),
+        alpha_vantage_api_key=_optional_string_env("ALPHA_VANTAGE_API_KEY"),
+        fred_api_key=_optional_string_env("FRED_API_KEY"),
         include_sp500=_bool_env("STOCK_ANALYZER_INCLUDE_SP500", True),
         manual_symbols=_csv_env("STOCK_ANALYZER_SYMBOLS", []),
         extra_symbols=_csv_env("STOCK_ANALYZER_EXTRA_SYMBOLS", DEFAULT_EXTRA_SYMBOLS),
@@ -173,6 +201,7 @@ def load_settings() -> Settings:
         history_period=os.getenv("STOCK_ANALYZER_HISTORY_PERIOD", "1y"),
         history_interval=os.getenv("STOCK_ANALYZER_HISTORY_INTERVAL", "1d"),
         max_symbols_per_batch=_int_env("STOCK_ANALYZER_MAX_SYMBOLS_PER_BATCH", 120),
+        min_market_coverage_pct=_float_env("STOCK_ANALYZER_MIN_MARKET_COVERAGE_PCT", 90.0),
         telegram_bot_token=_optional_string_env("TELEGRAM_BOT_TOKEN"),
         telegram_chat_id=telegram_chat_id,
         allowed_telegram_chat_ids=allowed_telegram_chat_ids,

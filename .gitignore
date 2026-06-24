@@ -41,8 +41,10 @@ data/
 # Logs
 *.log
 logs/
+tmp/
 
 # Editors and OS
 .DS_Store
 .idea/
 .vscode/
+.codex/

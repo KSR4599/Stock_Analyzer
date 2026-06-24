@@ -95,11 +95,13 @@ class FmpCatalystProvider(CatalystProvider):
         timeout_seconds: float = 20.0,
         lookback_hours: int = 72,
         max_news_articles: int = 6,
+        state_store: Any | None = None,
     ) -> None:
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
         self.lookback_hours = lookback_hours
         self.max_news_articles = max_news_articles
+        self.state_store = state_store
 
     def fetch_signals(self, symbols: list[str], run_at: datetime) -> dict[str, CatalystSignal]:
         signals: dict[str, CatalystSignal] = {}
@@ -139,7 +141,7 @@ class FmpCatalystProvider(CatalystProvider):
             confidence=signal.confidence,
             provider=signal.provider,
             reasons=signal.reasons,
-            risks=_dedupe([*signal.risks, *endpoint_errors])[:5],
+            risks=signal.risks,
             events=signal.events,
         )
 
@@ -163,21 +165,49 @@ class FmpCatalystProvider(CatalystProvider):
                 timeout=self.timeout_seconds,
             )
         except requests.RequestException as exc:
+            self._audit(endpoint, params, False, "network_error", 0, type(exc).__name__)
             raise FmpApiError(f"{endpoint} request failed: {type(exc).__name__}") from None
 
         if response.status_code in {401, 403}:
+            self._audit(endpoint, params, False, "authorization", 0, f"HTTP {response.status_code}")
             raise FmpApiError(f"{endpoint} authorization failed")
         if response.status_code == 402:
+            self._audit(endpoint, params, False, "plan_limited", 0, "HTTP 402")
             raise FmpApiError(f"{endpoint} requires plan access (HTTP 402)")
         if response.status_code == 429:
+            self._audit(endpoint, params, False, "rate_limited", 0, "HTTP 429")
             raise FmpApiError(f"{endpoint} rate limit reached")
         if not response.ok:
+            self._audit(endpoint, params, False, "http_error", 0, f"HTTP {response.status_code}")
             raise FmpApiError(f"{endpoint} failed with HTTP {response.status_code}")
 
         try:
-            return response.json()
+            payload = response.json()
         except ValueError:
+            self._audit(endpoint, params, False, "invalid_json", 0, "invalid JSON")
             raise FmpApiError(f"{endpoint} returned invalid JSON") from None
+        self._audit(endpoint, params, True, "ok", len(_as_list(payload)), "ok")
+        return payload
+
+    def _audit(
+        self,
+        endpoint: str,
+        params: dict[str, Any],
+        ok: bool,
+        status: str,
+        item_count: int,
+        message: str,
+    ) -> None:
+        if self.state_store is not None:
+            self.state_store.record_provider_call(
+                self.name,
+                endpoint,
+                str(params.get("symbol") or ""),
+                ok,
+                status,
+                item_count=item_count,
+                message=message,
+            )
 
 
 def run_fmp_smoke_test(

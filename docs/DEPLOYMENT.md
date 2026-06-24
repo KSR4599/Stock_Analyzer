@@ -111,5 +111,5 @@ Copy backups to OCI Object Storage or another private location if you want off-V
 
 - No inbound ports are needed.
 - Keep the VM firewall closed for this service.
-- Outbound HTTPS is required for yfinance, SEC EDGAR, optional FMP, and Telegram.
+- Outbound HTTPS is required for yfinance, SEC EDGAR, optional Finnhub/Marketaux/Alpha Vantage/FRED/FMP, and Telegram.
 - Do not add a webhook listener until it has authentication, allowlisting, rate limits, and audit logs.

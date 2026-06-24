@@ -4,6 +4,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from stock_analyzer.catalysts.models import (
+    FundamentalSnapshot,
+    MarketContext,
+    NewsItem,
+    SignalContribution,
+)
+
 
 @dataclass(frozen=True)
 class CatalystSignal:
@@ -14,6 +21,10 @@ class CatalystSignal:
     reasons: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     events: list[str] = field(default_factory=list)
+    contributions: list[SignalContribution] = field(default_factory=list)
+    news_items: list[NewsItem] = field(default_factory=list)
+    fundamental_snapshot: FundamentalSnapshot | None = None
+    market_context: MarketContext | None = None
 
 
 class CatalystProvider(ABC):

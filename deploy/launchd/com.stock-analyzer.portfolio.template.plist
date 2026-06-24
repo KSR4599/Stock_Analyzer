@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.stock-analyzer.portfolio</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PROJECT_DIR__/.venv/bin/python</string>
+    <string>-m</string>
+    <string>stock_analyzer.app</string>
+    <string>portfolio-run</string>
+    <string>--live</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_DIR__</string>
+
+  <key>StartInterval</key>
+  <integer>10800</integer>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>Umask</key>
+  <integer>63</integer>
+
+  <key>StandardOutPath</key>
+  <string>__PROJECT_DIR__/logs/stock-analyzer-portfolio.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__PROJECT_DIR__/logs/stock-analyzer-portfolio.err.log</string>
+</dict>
+</plist>

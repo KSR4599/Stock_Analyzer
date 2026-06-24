@@ -20,8 +20,10 @@ def rank_symbols(
     alert_threshold: float,
     benchmark_symbol: str = "SPY",
     as_of: datetime | pd.Timestamp | None = None,
+    excluded_symbols: set[str] | None = None,
 ) -> list[StockScore]:
     benchmark = histories.get(benchmark_symbol)
+    excluded = {benchmark_symbol, *(excluded_symbols or set())}
     scores = [
         score_symbol(
             symbol=symbol,
@@ -32,7 +34,7 @@ def rank_symbols(
             as_of=as_of,
         )
         for symbol, history in histories.items()
-        if symbol != benchmark_symbol
+        if symbol not in excluded
     ]
     return sorted(scores, key=lambda item: item.score, reverse=True)
 
