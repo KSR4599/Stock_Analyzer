@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Telegram-first moonshot stock analyzer with pluggable market data providers."
 requires-python = ">=3.10"
 dependencies = [
-    "beautifulsoup4>=4.12",
+    "beautifulsoup4>=4.15.0",
     "flask>=3.1,<4",
     "numpy>=1.26",
     "pandas>=2.2",
