@@ -1,4 +1,4 @@
-beautifulsoup4>=4.12,<5
+beautifulsoup4>=4.15.0,<5
 flask>=3.1,<4
 numpy>=1.26,<3
 pandas>=2.2,<3
